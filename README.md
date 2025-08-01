@@ -1,4 +1,4 @@
-# Transformation of Ultrasound Images to MR Images Using Generative Adversarial Networks
+# Transferring Ultrasound Images to MR Images Using Generative Adversarial Networks
 
 
 Training first 100 epochs:
