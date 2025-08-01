@@ -8,7 +8,7 @@ This repository provides implementations of several deep learning models for med
 
 This repository contains the following models, each located in its own directory:
 
-* **CycleGAN (2D & 3D)**: For unpaired image-to-image translation, ideal for datasets where a direct correspondence between source (e.g., US) and target (e.g., MRI) images is not available.
+* **CycleGAN (2D & 3D)**: For unpaired image-to-image translation, ideal for datasets where a direct correspondence between source (e.g., US) and target (e.g., MRI) images is not available. This model is implemented using a ResNet-based generator and a PatchGAN discriminator.
 * **Pix2Pix (2D)**: For paired image-to-image translation, which requires datasets where each source image has a corresponding target image.
 * **UNet & Encoder-Decoder (3D)**: Architectures commonly used for image segmentation and translation tasks in 3D medical imaging.
 
@@ -24,33 +24,50 @@ The repository is organized by model. Each model's directory contains the necess
 │   requirements.txt
 │
 ├───CycleGAN 2D/
-│   │   Experiment.py           # Main script to run the 2D CycleGAN experiment
-│   │   preprocess.py           # Script for data preparation
-│   │   Models/CycleGAN.py      # The CycleGAN model definition
-│   │   ...
+│   │   Experiment.py           # Main script to configure and run the experiment
+│   │   preprocess.py           # Script for data preparation (NIfTI to NPZ)
+│   │   utils.py                # Helper functions for data loading and splitting
+│   │   dataset.py              # Defines the TensorFlow dataset creation pipeline
+│   │
+│   ├───Models/
+│   │   └───CycleGAN.py         # The CycleGAN model definition
+│   │
+│   ├───Experiments/
+│   │   └───Transformation.py   # Core logic for training and generation
+│   │
+│   └───Data/
+│       ├───US_Images/          # Directory for raw Ultrasound NIfTI files
+│       ├───MRI_Images/         # Directory for raw MRI NIfTI files
+│       └───Preprocessed/       # Output of preprocess.py
 │
-├───CycleGAN 3D/
-│   │   Experiment.py           # Main script to run the 3D CycleGAN experiment
-│   │   ...
 │
-├───Pix2Pix 2D/
-│   │   Experiment.py           # Main script to run the 2D Pix2Pix experiment
-│   │   Models/Pix2Pix2D.py     # The Pix2Pix model definition
-│   │   ...
+│───CycleGAN 3D/
+│   │
+│   │____ ...
+│   │
+│   │____ ...
 │
-└───UNet & EncoderDecoder 3D/
-│   Experiment.py           # Main script to run the 3D UNet/Encoder-Decoder experiment
-│   Models/UNet.py          # The UNet model definition
-│   Models/EncoderDecoder.py # The Encoder-Decoder model definition
-│   ...
+│
+│───Pix2Pix 2D/
+│   │
+│   │____ ...
+│   │
+│   │____ ...
+│
+│───UNet & EncoderDecoder 3D/
+│   │
+│   │____ ...
+│   │
+│   │____ ...
 ```
+
 
 * **`[Model_Name]/`**: Each main directory contains a standalone implementation of a model.
 * **`Experiment.py`**: The main entry point for training and evaluating a model.
-* **`preprocess.py`**: Scripts for preparing and augmenting your dataset.
+* **`preprocess.py`**: Scripts for preparing and augmenting your dataset from raw `.nii.gz` files.
 * **`Models/`**: Contains the Python scripts defining the neural network architectures.
 * **`Tools/`**: A collection of utility scripts for callbacks, custom loss functions, and metrics.
-* **`output/`** (created on run): Stores the results of the experiments, including saved model weights and generated images.
+* **`Output/`** (created on run): Stores the results, including saved model weights, logs, and generated images.
 
 ---
 
@@ -62,10 +79,11 @@ Before you begin, ensure you have the following installed:
 
 * **Python 3.x**
 * **TensorFlow**
+* **TensorFlow-Addons** (for Instance Normalization)
 * **NumPy**
-* **SciPy**
+* **NiBabel** (for reading medical image files)
 * **Matplotlib**
-* **SimpleITK** or **NiBabel** (for handling medical image formats)
+* **tqdm**
 
 ### Installation
 
@@ -76,7 +94,7 @@ Before you begin, ensure you have the following installed:
     ```
 
 2.  **Install Python dependencies:**
-    It's highly recommended to use a virtual environment. The root `requirements.txt` contains common packages. Some models may have specific dependencies listed in their respective directories.
+    It's highly recommended to use a virtual environment. The root `requirements.txt` contains common packages.
 
     ```bash
     pip install -r requirements.txt
@@ -86,42 +104,48 @@ Before you begin, ensure you have the following installed:
 
 ## Usage
 
-The process for running an experiment is similar for each model. The following example uses the **CycleGAN 2D** model.
+The process involves two main steps: preparing the data and running an experiment. The following example uses the **CycleGAN 2D** model.
 
 ### 1. Data Preparation
 
-1.  Organize your dataset. For unpaired models like CycleGAN, you will need two separate directories of images (e.g., one for Ultrasound, one for MRI). For paired models like Pix2Pix, you'll need corresponding image pairs.
-    ```
-    data/
-    ├───trainA/ (e.g., Ultrasound images)
-    │   └─── img1.png
-    │   └─── ...
-    └───trainB/ (e.g., MR images)
-        └─── img1.png
-        └─── ...
-    ```
+The `preprocess.py` script converts 3D NIfTI (`.nii.gz`) images into 2D `.npz` slices that the model can consume.
 
-2.  Run the preprocessing script within the model's directory to format your data correctly. You may need to adjust paths within the script.
+1.  Navigate to the model's directory.
     ```bash
     cd "CycleGAN 2D"
-    python preprocess.py --dataroot ../data
     ```
+
+2.  Place your raw 3D Ultrasound and MRI volumes (in `.nii.gz` format) into the respective data folders:
+    * `Data/US_Images/`
+    * `Data/MRI_Images/`
+
+    *Note: The script expects corresponding US and MRI files to have names that can be matched (e.g., `ID_001_US.nii.gz` and `ID_001_MRI.nii.gz`).*
+
+3.  Run the preprocessing script. You can modify the `resize_to` parameter within the script if needed.
+    ```bash
+    python preprocess.py
+    ```
+    This will populate the `Data/Preprocessed/` directory with subfolders for each subject, containing the 2D image slices in `.npz` format.
 
 ### 2. Running an Experiment
 
-1.  Navigate to the directory of the model you wish to use.
-    ```bash
-    cd "CycleGAN 2D"
-    ```
+Once the data is preprocessed, you can train a new model or generate images from an existing one using `Experiment.py`.
 
-2.  Configure the experiment parameters inside `Experiment.py`. This includes setting the `dataset_path`, learning rate, epochs, and other hyperparameters.
+1.  **Configure the experiment:**
+    Open `CycleGAN 2D/Experiment.py` in a text editor. You can set key parameters at the top of the file:
+    * `mode`: Set to `'train'` to train a new model, `'generate_outputs_2D'` to create 2D image results, or `'generate_outputs_3D'` to reconstruct and save 3D volumes from the 2D outputs.
+    * `max_epochs`: The number of epochs to train for.
+    * `lr_gen_G`, `lr_disc_X`, etc.: Learning rates for the generators and discriminators.
+    * `random_seed`: Ensures the train/validation/test split is reproducible.
 
-3.  Run the main experiment script.
+2.  **Run the script:**
+    After saving your configuration, run the script from the `CycleGAN 2D` directory:
     ```bash
     python Experiment.py
     ```
 
-The training progress will be displayed in the console. Generated images, model checkpoints, and logs will be saved to an `output/` directory created within the model's folder.
+    * If `mode = 'train'`, the script will start training and save model weights to the `Output/CycleGan/TrainedModels/` directory. You will also see sample generated images saved periodically in `Output/CycleGan/SampleGeneratedImages/`.
+    * If `mode = 'generate_outputs_2D'`, the script will load the latest trained model and generate translated images, differential maps, and a `.csv` file with performance metrics (MAE, RMSE, SSI) in the `Output/CycleGan/Results/2D/` directory.
 
 ---
 
@@ -129,7 +153,7 @@ The training progress will be displayed in the console. Generated images, model 
 
 Here are some sample results from the **CycleGAN 2D** model, transforming ultrasound slices to MR images.
 
-**Training Progress (First 100 Epochs):**
+**Training Progress (Sampled Output):**
 ![Training_First_100_Epochs](https://github.com/mohammadrezashahsavari/Ultrasound-to-MRI-Transformation/assets/76266892/d2dce706-9bbd-4a9b-bd05-619ea2f6f0b1)
 
 **CycleGAN Output Sample on the Test Set:**
